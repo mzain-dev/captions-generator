@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local media storage (generated at runtime)
+storage/videos/*
+storage/audio/*
+storage/transcripts/*
+storage/renders/*
+storage/projects/*
+!storage/**/.gitkeep
+
+# local test media & configs
+*.mp4
+transcribe_result.json
+.claude/

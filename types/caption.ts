@@ -1,0 +1,72 @@
+export interface CaptionWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface Caption {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  words: CaptionWord[];
+}
+
+export type CaptionAnimation =
+  | "none"
+  | "fade"
+  | "pop"
+  | "karaoke"
+  | "word-by-word"
+  | "scale"
+  | "bounce";
+
+export type CaptionPosition = "top" | "center" | "bottom" | "custom";
+
+export interface CaptionStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  color: string;
+  highlightColor: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  position: CaptionPosition;
+  customY: number;
+  lineHeight: number;
+  letterSpacing: number;
+  animation: CaptionAnimation;
+  padding: number;
+  uppercase: boolean;
+  maxWidthPercent: number;
+}
+
+export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
+  fontFamily: "Inter, system-ui, sans-serif",
+  fontSize: 64,
+  fontWeight: 800,
+  color: "#FFFFFF",
+  highlightColor: "#22D3EE",
+  backgroundColor: "#000000",
+  backgroundOpacity: 0.6,
+  position: "bottom",
+  customY: 80,
+  lineHeight: 1.2,
+  letterSpacing: 0,
+  animation: "word-by-word",
+  padding: 16,
+  uppercase: false,
+  maxWidthPercent: 80,
+};
+
+export interface CaptionGenerationOptions {
+  maxWordsPerCaption: number;
+  maxCharsPerCaption: number;
+  minWordsPerCaption: number;
+}
+
+export const DEFAULT_CAPTION_GENERATION_OPTIONS: CaptionGenerationOptions = {
+  maxWordsPerCaption: 6,
+  maxCharsPerCaption: 42,
+  minWordsPerCaption: 1,
+};

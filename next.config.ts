@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: [
+    "@remotion/renderer",
+    "@remotion/bundler",
+    "fluent-ffmpeg",
+    "@ffmpeg-installer/ffmpeg",
+    "@ffprobe-installer/ffprobe",
+  ],
 };
 
 export default nextConfig;
