@@ -58,6 +58,11 @@ export function probeVideo(videoPath: string): Promise<VideoProbeResult> {
  * GOP/keyframe structures that Remotion's frame-accurate compositor fails to seek into
  * partway through the file ("No frame found at position X"). Normalizing every upload
  * to a known-good encode up front avoids that class of render failure entirely.
+ *
+ * The keyframe interval is kept short (every ~0.5s) so that when the editor's Player
+ * corrects for audio/video drift with a seek, the browser only has to decode a fraction
+ * of a second from the nearest keyframe instead of stalling for up to a full GOP —
+ * otherwise those routine corrective seeks show up as a visible stutter/rewind.
  */
 export function normalizeVideo(
   inputPath: string,
@@ -67,6 +72,8 @@ export function normalizeVideo(
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
+    const keyframeInterval = Math.max(1, Math.round(fps / 2));
+
     ffmpeg(inputPath)
       .videoCodec("libx264")
       .outputOptions([
@@ -74,7 +81,9 @@ export function normalizeVideo(
         "-vsync cfr",
         "-profile:v high",
         "-pix_fmt yuv420p",
-        `-g ${fps * 2}`,
+        `-g ${keyframeInterval}`,
+        `-keyint_min ${keyframeInterval}`,
+        "-sc_threshold 0",
         "-movflags +faststart",
       ])
       .audioCodec("aac")

@@ -41,12 +41,13 @@ yarn-error.log*
 next-env.d.ts
 
 # local media storage (generated at runtime)
-storage/videos/*
 storage/audio/*
 storage/transcripts/*
-storage/renders/*
 storage/projects/*
 !storage/**/.gitkeep
+public/media/videos/*
+public/media/renders/*
+!public/media/**/.gitkeep
 
 # local test media & configs
 *.mp4

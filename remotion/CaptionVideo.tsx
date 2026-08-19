@@ -1,5 +1,12 @@
 import React, { useMemo } from "react";
-import { AbsoluteFill, OffthreadVideo, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  OffthreadVideo,
+  Video,
+  getRemotionEnvironment,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { z } from "zod";
 import { Caption } from "./Caption";
 import { DEFAULT_CAPTION_STYLE } from "../types/caption";
@@ -62,6 +69,7 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({ videoSrc, captions, 
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   const currentTime = frame / fps;
+  const { isRendering } = getRemotionEnvironment();
 
   const activeCaption = useMemo(
     () => captions.find((c) => currentTime >= c.start && currentTime <= c.end),
@@ -76,7 +84,10 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({ videoSrc, captions, 
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {videoSrc && <OffthreadVideo src={videoSrc} />}
+      {videoSrc &&
+        // OffthreadVideo gives frame-exact extraction needed for export, but stutters when
+        // driven by the browser Player during live preview — use native <Video> there instead.
+        (isRendering ? <OffthreadVideo src={videoSrc} /> : <Video src={videoSrc} />)}
       <AbsoluteFill
         style={{
           display: "flex",

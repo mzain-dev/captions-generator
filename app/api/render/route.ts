@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderCaptionVideo, RenderError } from "@/lib/renderer";
-import { renderOutputPath, toPublicVideoUrl } from "@/lib/paths";
+import { renderOutputPath, toPublicVideoUrl, toPublicRenderUrl } from "@/lib/paths";
 import { loadProject, saveProject } from "@/lib/project";
 import type { Caption, CaptionStyle } from "@/types/caption";
 
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
   jobs.set(projectId, { progress: 0, status: "rendering" });
 
   // The Remotion renderer's compositor needs an HTTP-reachable URL for the video asset
-  // (a local filesystem path isn't fetchable), so we serve it from our own media route.
+  // (a local filesystem path isn't fetchable), so we serve it via Next's static file
+  // handler from public/media rather than a custom route.
   const videoSrc = new URL(
     toPublicVideoUrl(projectId, project.video.fileName),
     request.nextUrl.origin
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
   )
     .then(() => {
-      const renderUrl = `/api/media/renders/${projectId}/final.mp4`;
+      const renderUrl = toPublicRenderUrl(projectId);
       jobs.set(projectId, { progress: 1, status: "done", renderUrl });
       const p = loadProject(projectId);
       if (p) {

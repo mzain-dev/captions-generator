@@ -191,7 +191,7 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
   }
 
   const inputProps: CaptionVideoProps = {
-    videoSrc: `/api/media/videos/${projectId}/${project.video.fileName}`,
+    videoSrc: `/media/videos/${projectId}/${project.video.fileName}`,
     captions,
     style,
     width: project.video.width,
