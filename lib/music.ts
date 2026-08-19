@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { STORAGE_ROOT, PUBLIC_MEDIA_ROOT } from "@/lib/paths";
+import { probeAudioDuration } from "@/lib/ffmpeg";
 import type { MusicTrack } from "@/types/music";
 
 const registryPath = () => path.join(STORAGE_ROOT, "music.json");
@@ -39,12 +40,21 @@ export async function saveMusicTrack(file: File): Promise<MusicTrack> {
   const id = `music_${randomUUID().slice(0, 8)}`;
   fs.mkdirSync(musicDir(), { recursive: true });
   const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(musicDir(), `${id}${ext}`), buffer);
+  const filePath = path.join(musicDir(), `${id}${ext}`);
+  fs.writeFileSync(filePath, buffer);
+
+  let durationInSeconds = 0;
+  try {
+    durationInSeconds = await probeAudioDuration(filePath);
+  } catch {
+    // Non-fatal: the track just won't loop correctly under longer videos.
+  }
 
   const track: MusicTrack = {
     id,
     name: file.name.replace(ext, ""),
     fileName: file.name,
+    durationInSeconds,
     createdAt: new Date().toISOString(),
   };
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import {
   AbsoluteFill,
   Audio,
+  Loop,
   OffthreadVideo,
   Video,
   continueRender,
@@ -65,6 +66,7 @@ export const captionVideoSchema = z.object({
   customFonts: z.array(customFontSchema).optional(),
   musicSrc: z.string().optional(),
   musicVolume: z.number().optional(),
+  musicDurationInSeconds: z.number().optional(),
 });
 
 export type CaptionVideoProps = z.infer<typeof captionVideoSchema>;
@@ -124,6 +126,7 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({
   customFonts,
   musicSrc,
   musicVolume,
+  musicDurationInSeconds,
 }) => {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
@@ -163,7 +166,17 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({
         ) : (
           <Video src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ))}
-      {musicSrc && <Audio src={musicSrc} volume={duckedVolume} />}
+      {musicSrc &&
+        // Built-in and uploaded tracks are almost always shorter than the video, so loop
+        // them to fill the full duration. Without a known track length we can't safely
+        // compute a loop boundary, so it just plays once (better than crashing).
+        (musicDurationInSeconds && musicDurationInSeconds > 0 ? (
+          <Loop durationInFrames={Math.max(1, Math.round(musicDurationInSeconds * fps))}>
+            <Audio src={musicSrc} volume={duckedVolume} loopVolumeCurveBehavior="extend" />
+          </Loop>
+        ) : (
+          <Audio src={musicSrc} volume={duckedVolume} />
+        ))}
       <AbsoluteFill
         style={{
           display: "flex",

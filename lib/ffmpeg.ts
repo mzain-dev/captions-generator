@@ -51,6 +51,18 @@ export function probeVideo(videoPath: string): Promise<VideoProbeResult> {
   });
 }
 
+export function probeAudioDuration(audioPath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(audioPath, (err, data) => {
+      if (err) {
+        reject(new FFmpegError("Failed to read audio metadata. The file may be corrupt.", err));
+        return;
+      }
+      resolve(data.format.duration ?? 0);
+    });
+  });
+}
+
 /**
  * Re-encodes an uploaded video to a constant-frame-rate H.264/AAC MP4.
  *

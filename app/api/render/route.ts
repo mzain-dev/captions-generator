@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
       customFonts,
       musicSrc,
       musicVolume: project.musicVolume,
+      musicDurationInSeconds: musicTrack?.durationInSeconds,
     },
     outputPath,
     (progress) => {

@@ -317,6 +317,7 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       ? `/media/music/${selectedMusicTrack.id}${selectedMusicTrack.fileName.slice(selectedMusicTrack.fileName.lastIndexOf("."))}`
       : undefined,
     musicVolume,
+    musicDurationInSeconds: selectedMusicTrack?.durationInSeconds,
   };
   const durationInFrames = Math.max(1, Math.round(project.video.durationInSeconds * project.video.fps));
 
