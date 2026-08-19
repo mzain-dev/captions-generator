@@ -1,5 +1,5 @@
 import type { Caption, CaptionGenerationOptions, CaptionWord } from "@/types/caption";
-import type { Transcript, TranscriptWord } from "@/types/transcript";
+import type { ScriptMode, Transcript, TranscriptWord } from "@/types/transcript";
 import { DEFAULT_CAPTION_GENERATION_OPTIONS } from "@/types/caption";
 
 const SENTENCE_END_RE = /[.!?]["')\]]?$/;
@@ -7,11 +7,17 @@ const SENTENCE_END_RE = /[.!?]["')\]]?$/;
 /**
  * Groups word-level transcript timestamps into caption chunks using simple rules:
  * word count, character budget, and sentence-ending punctuation as a natural break point.
+ * For romanizable languages, pass scriptMode "roman" to chunk the transliterated words
+ * instead of the native-script ones (falls back to native if no romanization exists).
  */
 export function generateCaptions(
   transcript: Transcript,
-  options: CaptionGenerationOptions = DEFAULT_CAPTION_GENERATION_OPTIONS
+  options: CaptionGenerationOptions = DEFAULT_CAPTION_GENERATION_OPTIONS,
+  scriptMode: ScriptMode = "native"
 ): Caption[] {
+  const sourceWords =
+    scriptMode === "roman" && transcript.romanizedWords ? transcript.romanizedWords : transcript.words;
+
   const captions: Caption[] = [];
   let current: TranscriptWord[] = [];
   let captionIndex = 1;
@@ -26,7 +32,7 @@ export function generateCaptions(
   const currentCharCount = () =>
     current.reduce((sum, w) => sum + w.text.length + 1, 0);
 
-  for (const word of transcript.words) {
+  for (const word of sourceWords) {
     const wouldExceedChars =
       current.length > 0 &&
       currentCharCount() + word.text.length + 1 > options.maxCharsPerCaption;

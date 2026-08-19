@@ -1,16 +1,1 @@
-[
-  {
-    "id": "builtin_ambient_calm",
-    "name": "Ambient Calm",
-    "fileName": "Ambient Calm.mp3",
-    "durationInSeconds": 20,
-    "createdAt": "2026-08-19T15:01:30.830Z"
-  },
-  {
-    "id": "builtin_lofi_chill",
-    "name": "Lo-Fi Chill",
-    "fileName": "Lo-Fi Chill.mp3",
-    "durationInSeconds": 24,
-    "createdAt": "2026-08-19T15:01:30.832Z"
-  }
-]
+[]

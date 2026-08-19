@@ -8,6 +8,9 @@ import { DEFAULT_CAPTION_STYLE } from "@/types/caption";
 import type { ProjectData } from "@/types/project";
 import type { CustomFont } from "@/types/font";
 import type { MusicTrack } from "@/types/music";
+import type { ScriptMode, Transcript } from "@/types/transcript";
+import { isRomanizableLanguage, romanizableLanguageName } from "@/lib/languages";
+import { generateCaptions } from "@/lib/captions";
 import { CaptionPreview } from "@/components/CaptionPreview";
 import { Timeline } from "@/components/Timeline";
 import { EditorSidebar } from "@/components/EditorSidebar";
@@ -44,6 +47,9 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
   const { captions, style } = editorState;
   const [musicTrackId, setMusicTrackId] = useState<string | undefined>(undefined);
   const [musicVolume, setMusicVolume] = useState(0.5);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [scriptMode, setScriptMode] = useState<ScriptMode | undefined>(undefined);
+  const [scriptChoicePending, setScriptChoicePending] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>({ phase: "loading" });
   const [selectedCaptionId, setSelectedCaptionId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -89,11 +95,27 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
         return;
       }
 
+      const newTranscript = transcribeData.transcript as Transcript;
+      setTranscript(newTranscript);
       setEditorState((prev) => ({ ...prev, captions: transcribeData.captions }));
       undoStack.current = [];
       redoStack.current = [];
       syncHistoryState();
       setLoadState({ phase: "ready" });
+
+      // Whisper transcribes non-Latin-script languages in their native script by default.
+      // If we managed to also transliterate it, ask which the user wants rather than
+      // silently picking one — captions are already generated in native script for now.
+      // Deliberately NOT setting scriptMode here: that only happens when the user actually
+      // clicks a choice, otherwise the debounced autosave would silently record "native"
+      // as a real decision before they've even seen the prompt.
+      if (
+        isRomanizableLanguage(newTranscript.language) &&
+        newTranscript.romanizedWords &&
+        newTranscript.romanizedWords.length > 0
+      ) {
+        setScriptChoicePending(true);
+      }
     } catch {
       setLoadState({ phase: "error", message: "Failed to reach the transcription server." });
     } finally {
@@ -121,10 +143,24 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       const mergedStyle = { ...DEFAULT_CAPTION_STYLE, ...proj.style };
       setMusicTrackId(proj.musicTrackId);
       setMusicVolume(proj.musicVolume ?? 0.5);
+      setScriptMode(proj.scriptMode);
 
       if (proj.status === "ready" || proj.status === "rendered" || proj.captions.length > 0) {
         setEditorState({ captions: proj.captions, style: mergedStyle });
+        setTranscript(proj.transcript ?? null);
         setLoadState({ phase: "ready" });
+
+        // Only prompt if this project has never had a script choice made for it —
+        // reopening a project shouldn't re-ask every time.
+        if (
+          !proj.scriptMode &&
+          proj.transcript &&
+          isRomanizableLanguage(proj.transcript.language) &&
+          proj.transcript.romanizedWords &&
+          proj.transcript.romanizedWords.length > 0
+        ) {
+          setScriptChoicePending(true);
+        }
         return;
       }
 
@@ -158,11 +194,17 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       fetch(`/api/projects/${projectId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captions, style, musicTrackId: musicTrackId ?? null, musicVolume }),
+        body: JSON.stringify({
+          captions,
+          style,
+          musicTrackId: musicTrackId ?? null,
+          musicVolume,
+          scriptMode,
+        }),
       }).catch(() => {});
     }, 600);
     return () => clearTimeout(timeout);
-  }, [captions, style, musicTrackId, musicVolume, project, projectId, loadState.phase]);
+  }, [captions, style, musicTrackId, musicVolume, scriptMode, project, projectId, loadState.phase]);
 
   // Track playhead position and play state from the Remotion Player.
   useEffect(() => {
@@ -225,6 +267,19 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       return { ...prev, style: { ...prev.style, ...patch } };
     });
   }, []);
+
+  // Regenerates every caption from the transcript in the chosen script. This replaces
+  // whatever captions are currently showing — including any manual text edits — since a
+  // script switch re-chunks from the transcript's word list, not the existing captions.
+  const applyScriptMode = useCallback(
+    (mode: ScriptMode) => {
+      if (!transcript) return;
+      setScriptMode(mode);
+      setScriptChoicePending(false);
+      setCaptions(generateCaptions(transcript, undefined, mode));
+    },
+    [transcript, setCaptions]
+  );
 
   const undo = useCallback(() => {
     const prevState = undoStack.current.pop();
@@ -348,9 +403,61 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
               ↷ Redo
             </button>
           </div>
+          {transcript?.romanizedWords && transcript.romanizedWords.length > 0 && transcript.language && (
+            <div className="flex items-center rounded-lg overflow-hidden border border-neutral-700 ml-1">
+              <button
+                onClick={() => applyScriptMode("native")}
+                className={`px-2 py-1 text-xs ${
+                  scriptMode !== "roman"
+                    ? "bg-cyan-500/20 text-cyan-300"
+                    : "bg-transparent text-neutral-400 hover:bg-neutral-800"
+                }`}
+              >
+                {romanizableLanguageName(transcript.language)}
+              </button>
+              <button
+                onClick={() => applyScriptMode("roman")}
+                className={`px-2 py-1 text-xs ${
+                  scriptMode === "roman"
+                    ? "bg-cyan-500/20 text-cyan-300"
+                    : "bg-transparent text-neutral-400 hover:bg-neutral-800"
+                }`}
+              >
+                Roman {romanizableLanguageName(transcript.language)}
+              </button>
+            </div>
+          )}
         </div>
         <ExportButton projectId={projectId} captions={captions} style={style} />
       </header>
+
+      {scriptChoicePending && transcript?.language && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <div className="w-full max-w-sm rounded-xl border border-neutral-700 bg-neutral-900 p-6 space-y-4">
+            <h2 className="text-base font-semibold text-neutral-100">
+              Detected {romanizableLanguageName(transcript.language)} speech
+            </h2>
+            <p className="text-sm text-neutral-400">
+              How would you like the captions written? You can switch anytime from the toggle
+              in the header.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => applyScriptMode("native")}
+                className="px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-semibold hover:bg-cyan-400"
+              >
+                {romanizableLanguageName(transcript.language)} script
+              </button>
+              <button
+                onClick={() => applyScriptMode("roman")}
+                className="px-4 py-2 rounded-lg bg-neutral-800 text-neutral-200 text-sm font-semibold hover:bg-neutral-700"
+              >
+                Roman {romanizableLanguageName(transcript.language)} (Latin letters)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0">
         <EditorSidebar

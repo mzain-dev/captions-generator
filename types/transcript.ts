@@ -5,10 +5,14 @@ export interface TranscriptWord {
   end: number;
 }
 
+export type ScriptMode = "native" | "roman";
+
 export interface Transcript {
   words: TranscriptWord[];
   duration: number;
   language?: string;
+  /** Roman-letter transliteration of `words`, only populated for romanizable languages. */
+  romanizedWords?: TranscriptWord[];
 }
 
 export interface OpenAIVerboseSegment {

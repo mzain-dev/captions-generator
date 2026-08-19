@@ -1,5 +1,5 @@
 import type { Caption, CaptionStyle } from "./caption";
-import type { Transcript } from "./transcript";
+import type { ScriptMode, Transcript } from "./transcript";
 
 export interface VideoMetadata {
   fileName: string;
@@ -29,6 +29,7 @@ export interface ProjectData {
   transcript?: Transcript;
   captions: Caption[];
   style: CaptionStyle;
+  scriptMode?: ScriptMode;
   musicTrackId?: string;
   musicVolume?: number;
   renderPath?: string;

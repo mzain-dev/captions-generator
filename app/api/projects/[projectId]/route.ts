@@ -3,6 +3,7 @@ import fs from "fs";
 import { loadProject, saveProject, deleteProject } from "@/lib/project";
 import { projectVideoDir, projectAudioDir, projectTranscriptDir, projectRenderDir } from "@/lib/paths";
 import type { Caption, CaptionStyle } from "@/types/caption";
+import type { ScriptMode } from "@/types/transcript";
 
 export async function GET(
   _request: NextRequest,
@@ -32,6 +33,7 @@ export async function PUT(
     style?: CaptionStyle;
     musicTrackId?: string | null;
     musicVolume?: number;
+    scriptMode?: ScriptMode;
   };
 
   if (body.name !== undefined) project.name = body.name;
@@ -39,6 +41,7 @@ export async function PUT(
   if (body.style !== undefined) project.style = body.style;
   if (body.musicTrackId !== undefined) project.musicTrackId = body.musicTrackId ?? undefined;
   if (body.musicVolume !== undefined) project.musicVolume = body.musicVolume;
+  if (body.scriptMode !== undefined) project.scriptMode = body.scriptMode;
   project.updatedAt = new Date().toISOString();
 
   saveProject(project);

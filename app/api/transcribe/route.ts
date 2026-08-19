@@ -52,21 +52,22 @@ export async function POST(request: NextRequest) {
 
         // Whisper transcribes in the spoken language's native script. For languages that
         // are far more commonly read/typed in a casual Latin-letter spelling (Roman Urdu,
-        // Hinglish, Arabizi, etc.), transliterate word-by-word — preserving the per-word
-        // timestamps exactly — before caching/chunking.
+        // Hinglish, Arabizi, etc.), also compute a transliterated version — keeping BOTH
+        // rather than overwriting, so the editor can ask which script the user wants and
+        // let them switch later without re-transcribing.
         if (isRomanizableLanguage(transcript.language)) {
           try {
             const romanized = await transliterateToRoman(
               transcript.words.map((w) => w.text),
               transcript.language!
             );
-            transcript = {
-              ...transcript,
-              words: transcript.words.map((w, i) => ({ ...w, text: romanized[i] })),
-            };
+            transcript.romanizedWords = transcript.words.map((w, i) => ({
+              ...w,
+              text: romanized[i],
+            }));
           } catch (err) {
             console.error(
-              `Roman transliteration failed for language "${transcript.language}", keeping native script:`,
+              `Roman transliteration failed for language "${transcript.language}":`,
               err
             );
           }
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     project.transcript = transcript;
-    project.captions = generateCaptions(transcript);
+    project.captions = generateCaptions(transcript, undefined, project.scriptMode);
     project.status = "ready";
     project.error = undefined;
     project.updatedAt = new Date().toISOString();
