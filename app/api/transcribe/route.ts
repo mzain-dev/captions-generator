@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import { extractAudio, FFmpegError } from "@/lib/ffmpeg";
 import { transcribeAudio, TranscriptionError } from "@/lib/openai";
+import { transliterateToRomanUrdu } from "@/lib/transliterate";
 import { normalizeTranscript, saveTranscript, loadTranscript } from "@/lib/transcript";
 import { generateCaptions } from "@/lib/captions";
 import { audioPath, transcriptJsonPath } from "@/lib/paths";
@@ -48,6 +49,24 @@ export async function POST(request: NextRequest) {
       try {
         const raw = await transcribeAudio(audioOut);
         transcript = normalizeTranscript(raw);
+
+        // Whisper transcribes in the spoken language's native script. For Urdu specifically,
+        // captions are far more commonly read in Roman Urdu (Latin letters), so transliterate
+        // word-by-word — preserving the per-word timestamps exactly — before caching/chunking.
+        if (transcript.language?.toLowerCase() === "urdu") {
+          try {
+            const romanized = await transliterateToRomanUrdu(
+              transcript.words.map((w) => w.text)
+            );
+            transcript = {
+              ...transcript,
+              words: transcript.words.map((w, i) => ({ ...w, text: romanized[i] })),
+            };
+          } catch (err) {
+            console.error("Roman Urdu transliteration failed, keeping Urdu script:", err);
+          }
+        }
+
         saveTranscript(transcriptJsonPath(projectId), transcript);
       } catch (err) {
         project.status = "error";
