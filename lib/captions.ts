@@ -79,15 +79,15 @@ export function splitCaptionAtWordIndex(caption: Caption, index: number): [Capti
   const first = caption.words.slice(0, index);
   const second = caption.words.slice(index);
   return [
-    captionFromWords(`${caption.id}_a`, first),
-    captionFromWords(`${caption.id}_b`, second),
+    { ...captionFromWords(`${caption.id}_a`, first), speaker: caption.speaker },
+    { ...captionFromWords(`${caption.id}_b`, second), speaker: caption.speaker },
   ];
 }
 
 /** Merges two adjacent captions into one, concatenating their words in order. */
 export function mergeCaptions(a: Caption, b: Caption): Caption {
   const words = [...a.words, ...b.words].sort((w1, w2) => w1.start - w2.start);
-  return captionFromWords(a.id, words);
+  return { ...captionFromWords(a.id, words), speaker: a.speaker ?? b.speaker };
 }
 
 /**

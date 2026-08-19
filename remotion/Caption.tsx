@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import type { Caption as CaptionType, CaptionStyle } from "../types/caption";
+import { colorForSpeaker } from "../types/caption";
 
 interface CaptionProps {
   caption: CaptionType;
@@ -25,36 +26,64 @@ export const Caption: React.FC<CaptionProps> = ({ caption, style, currentTime })
       ? spring({ frame: framesSinceStart, fps, config: { damping: 12, stiffness: 180 } })
       : 1;
 
+  // Whisper doesn't do speaker diarization, so speakers are tagged by hand in the editor.
+  // Each distinct label gets a consistent color so viewers can tell who's talking.
+  const speakerColor = caption.speaker ? colorForSpeaker(caption.speaker) : null;
+
   return (
     <div
       style={{
-        opacity: containerOpacity,
-        transform: `scale(${containerScale})`,
         display: "flex",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        gap: `${style.fontSize * 0.18}px`,
-        maxWidth: `${style.maxWidthPercent}%`,
-        backgroundColor:
-          style.backgroundOpacity > 0
-            ? hexToRgba(style.backgroundColor, style.backgroundOpacity)
-            : "transparent",
-        padding: style.backgroundOpacity > 0 ? `${style.padding}px ${style.padding * 1.5}px` : 0,
-        borderRadius: 12,
+        flexDirection: "column",
+        alignItems: "center",
+        gap: `${style.fontSize * 0.1}px`,
       }}
     >
-      {caption.words.map((word, index) => (
-        <Word
-          key={`${caption.id}_${index}`}
-          text={word.text}
-          isActive={currentTime >= word.start && currentTime <= word.end}
-          hasStarted={currentTime >= word.start}
-          style={style}
-          frame={frame}
-          wordStartFrame={Math.round(word.start * fps)}
-          fps={fps}
-        />
-      ))}
+      {caption.speaker && (
+        <span
+          style={{
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize * 0.32,
+            fontWeight: 700,
+            color: speakerColor ?? style.color,
+            opacity: containerOpacity,
+            textShadow: "0 2px 6px rgba(0,0,0,0.5)",
+          }}
+        >
+          {caption.speaker}
+        </span>
+      )}
+      <div
+        style={{
+          opacity: containerOpacity,
+          transform: `scale(${containerScale})`,
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: `${style.fontSize * 0.18}px`,
+          maxWidth: `${style.maxWidthPercent}%`,
+          backgroundColor:
+            style.backgroundOpacity > 0
+              ? hexToRgba(style.backgroundColor, style.backgroundOpacity)
+              : "transparent",
+          padding: style.backgroundOpacity > 0 ? `${style.padding}px ${style.padding * 1.5}px` : 0,
+          borderRadius: 12,
+        }}
+      >
+        {caption.words.map((word, index) => (
+          <Word
+            key={`${caption.id}_${index}`}
+            text={word.text}
+            isActive={currentTime >= word.start && currentTime <= word.end}
+            hasStarted={currentTime >= word.start}
+            style={style}
+            baseColor={speakerColor ?? style.color}
+            frame={frame}
+            wordStartFrame={Math.round(word.start * fps)}
+            fps={fps}
+          />
+        ))}
+      </div>
     </div>
   );
 };
@@ -64,6 +93,7 @@ interface WordProps {
   isActive: boolean;
   hasStarted: boolean;
   style: CaptionStyle;
+  baseColor: string;
   frame: number;
   wordStartFrame: number;
   fps: number;
@@ -74,6 +104,7 @@ const Word: React.FC<WordProps> = ({
   isActive,
   hasStarted,
   style,
+  baseColor,
   frame,
   wordStartFrame,
   fps,
@@ -85,7 +116,7 @@ const Word: React.FC<WordProps> = ({
   }
 
   const isHighlighted = style.animation === "karaoke" ? hasStarted : isActive;
-  const color = isHighlighted ? style.highlightColor : style.color;
+  const color = isHighlighted ? style.highlightColor : baseColor;
   const hasHighlightBackground = isHighlighted && style.highlightBackgroundOpacity > 0;
 
   let transform = "none";

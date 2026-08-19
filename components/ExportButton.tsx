@@ -9,6 +9,15 @@ interface ExportButtonProps {
   style: CaptionStyle;
 }
 
+export type CropAspect = "original" | "9:16" | "1:1" | "16:9";
+
+const CROP_OPTIONS: { value: CropAspect; label: string }[] = [
+  { value: "original", label: "Original" },
+  { value: "9:16", label: "9:16 Reels/TikTok" },
+  { value: "1:1", label: "1:1 Square" },
+  { value: "16:9", label: "16:9 Landscape" },
+];
+
 type ExportState =
   | { phase: "idle" }
   | { phase: "rendering"; progress: number }
@@ -17,6 +26,7 @@ type ExportState =
 
 export function ExportButton({ projectId, captions, style }: ExportButtonProps) {
   const [state, setState] = useState<ExportState>({ phase: "idle" });
+  const [cropAspect, setCropAspect] = useState<CropAspect>("original");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -35,7 +45,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, captions, style }),
+        body: JSON.stringify({ projectId, captions, style, cropAspect }),
       });
       const data = await res.json();
 
@@ -61,19 +71,52 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
     } catch {
       setState({ phase: "error", message: "Failed to reach the render server." });
     }
-  }, [projectId, captions, style, stopPolling]);
+  }, [projectId, captions, style, cropAspect, stopPolling]);
+
+  const cropPicker = state.phase === "idle" || state.phase === "error" ? (
+    <select
+      value={cropAspect}
+      onChange={(e) => setCropAspect(e.target.value as CropAspect)}
+      className="bg-neutral-800 rounded px-2 py-2 text-sm text-neutral-300"
+    >
+      {CROP_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  ) : null;
+
+  const subtitleLinks = (
+    <div className="flex items-center gap-1 text-xs">
+      <a
+        href={`/api/subtitles/${projectId}?format=srt`}
+        download
+        className="px-2 py-1 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+      >
+        .SRT
+      </a>
+      <a
+        href={`/api/subtitles/${projectId}?format=vtt`}
+        download
+        className="px-2 py-1 rounded text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+      >
+        .VTT
+      </a>
+    </div>
+  );
 
   if (state.phase === "rendering") {
     const pct = Math.round(state.progress * 100);
     return (
-      <div className="flex items-center gap-3 w-64">
-        <div className="flex-1 h-2 rounded-full bg-neutral-800 overflow-hidden">
-          <div
-            className="h-full bg-cyan-400 transition-all"
-            style={{ width: `${pct}%` }}
-          />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-56">
+          <div className="flex-1 h-2 rounded-full bg-neutral-800 overflow-hidden">
+            <div className="h-full bg-cyan-400 transition-all" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="text-xs text-neutral-400 w-10 text-right">{pct}%</span>
         </div>
-        <span className="text-xs text-neutral-400 w-10 text-right">{pct}%</span>
+        {subtitleLinks}
       </div>
     );
   }
@@ -81,6 +124,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
   if (state.phase === "done") {
     return (
       <div className="flex items-center gap-2">
+        {cropPicker}
         <a
           href={state.renderUrl}
           download
@@ -94,6 +138,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
         >
           Re-export
         </button>
+        {subtitleLinks}
       </div>
     );
   }
@@ -101,6 +146,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
   if (state.phase === "error") {
     return (
       <div className="flex items-center gap-2">
+        {cropPicker}
         <span className="text-xs text-red-400 max-w-48">{state.message}</span>
         <button
           onClick={startExport}
@@ -108,16 +154,21 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
         >
           Retry export
         </button>
+        {subtitleLinks}
       </div>
     );
   }
 
   return (
-    <button
-      onClick={startExport}
-      className="px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-semibold hover:bg-cyan-400 transition-colors"
-    >
-      Export video
-    </button>
+    <div className="flex items-center gap-2">
+      {cropPicker}
+      <button
+        onClick={startExport}
+        className="px-4 py-2 rounded-lg bg-cyan-500 text-black text-sm font-semibold hover:bg-cyan-400 transition-colors"
+      >
+        Export video
+      </button>
+      {subtitleLinks}
+    </div>
   );
 }

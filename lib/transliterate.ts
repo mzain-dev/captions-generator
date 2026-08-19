@@ -11,6 +11,22 @@ export class TransliterationError extends Error {
 // and so a single bad batch doesn't risk the whole (possibly long) transcript.
 const BATCH_SIZE = 80;
 
+// Languages Whisper transcribes in a non-Latin script that are, in everyday practice,
+// far more commonly read/typed in a casual Latin-letter ("Roman") spelling than in their
+// native script — e.g. Roman Urdu on WhatsApp, Arabizi for Arabic, Hinglish for Hindi.
+// Keyed by the lowercase language name Whisper's verbose_json response reports.
+export const ROMANIZABLE_LANGUAGES: Record<string, string> = {
+  urdu: "Urdu",
+  hindi: "Hindi",
+  arabic: "Arabic",
+  persian: "Persian (Farsi)",
+  punjabi: "Punjabi",
+};
+
+export function isRomanizableLanguage(language: string | undefined): boolean {
+  return !!language && language.toLowerCase() in ROMANIZABLE_LANGUAGES;
+}
+
 let client: OpenAI | null = null;
 
 function getClient(): OpenAI {
@@ -24,7 +40,7 @@ function getClient(): OpenAI {
   return client;
 }
 
-async function transliterateBatch(words: string[]): Promise<string[]> {
+async function transliterateBatch(words: string[], languageName: string): Promise<string[]> {
   const openai = getClient();
 
   const response = await openai.chat.completions.create({
@@ -34,13 +50,13 @@ async function transliterateBatch(words: string[]): Promise<string[]> {
       {
         role: "system",
         content:
-          "You transliterate Urdu-script words into Roman Urdu (Urdu written phonetically " +
-          "in Latin letters, the casual style Urdu speakers use when typing, e.g. on WhatsApp). " +
-          'You receive a JSON array of words in order. Return a JSON object {"words": [...]} ' +
-          "with EXACTLY the same number of items in the same order, each item being the Roman " +
-          "Urdu spelling of the corresponding input word. Keep punctuation attached to a word " +
-          "(e.g. a trailing comma or period) attached to its transliteration. Do not merge, " +
-          "split, drop, or reorder words.",
+          `You transliterate ${languageName}-script words into Roman ${languageName} (${languageName} ` +
+          "written phonetically in Latin letters, the casual style speakers use when typing, " +
+          'e.g. on WhatsApp). You receive a JSON array of words in order. Return a JSON object ' +
+          '{"words": [...]} with EXACTLY the same number of items in the same order, each item ' +
+          `being the Roman ${languageName} spelling of the corresponding input word. Keep punctuation ` +
+          "attached to a word (e.g. a trailing comma or period) attached to its transliteration. " +
+          "Do not merge, split, drop, or reorder words.",
       },
       { role: "user", content: JSON.stringify(words) },
     ],
@@ -68,12 +84,13 @@ async function transliterateBatch(words: string[]): Promise<string[]> {
   return result.map((w) => String(w));
 }
 
-/** Transliterates a list of Urdu-script words into Roman Urdu, preserving order and count. */
-export async function transliterateToRomanUrdu(words: string[]): Promise<string[]> {
+/** Transliterates a list of words from a given language's native script into Roman spelling. */
+export async function transliterateToRoman(words: string[], language: string): Promise<string[]> {
+  const languageName = ROMANIZABLE_LANGUAGES[language.toLowerCase()] ?? language;
   const output: string[] = [];
   for (let i = 0; i < words.length; i += BATCH_SIZE) {
     const batch = words.slice(i, i + BATCH_SIZE);
-    output.push(...(await transliterateBatch(batch)));
+    output.push(...(await transliterateBatch(batch, languageName)));
   }
   return output;
 }

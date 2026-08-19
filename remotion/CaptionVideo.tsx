@@ -1,8 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   AbsoluteFill,
+  Audio,
   OffthreadVideo,
   Video,
+  continueRender,
+  delayRender,
   getRemotionEnvironment,
   useCurrentFrame,
   useVideoConfig,
@@ -45,6 +48,12 @@ const captionStyleSchema = z.object({
   maxWidthPercent: z.number(),
 });
 
+const customFontSchema = z.object({
+  family: z.string(),
+  url: z.string(),
+  format: z.string(),
+});
+
 export const captionVideoSchema = z.object({
   videoSrc: z.string(),
   captions: z.array(captionSchema),
@@ -53,6 +62,9 @@ export const captionVideoSchema = z.object({
   height: z.number(),
   fps: z.number(),
   durationInSeconds: z.number(),
+  customFonts: z.array(customFontSchema).optional(),
+  musicSrc: z.string().optional(),
+  musicVolume: z.number().optional(),
 });
 
 export type CaptionVideoProps = z.infer<typeof captionVideoSchema>;
@@ -65,13 +77,61 @@ export const defaultCaptionVideoProps: CaptionVideoProps = {
   height: 1920,
   fps: 30,
   durationInSeconds: 10,
+  customFonts: [],
+  musicVolume: 0.5,
 };
 
-export const CaptionVideo: React.FC<CaptionVideoProps> = ({ videoSrc, captions, style }) => {
+/** Loads any custom uploaded fonts and blocks Remotion from capturing frames until they're ready. */
+function useCustomFonts(fonts: CaptionVideoProps["customFonts"]) {
+  useEffect(() => {
+    if (!fonts || fonts.length === 0) return;
+    const handle = delayRender("Loading custom fonts");
+
+    Promise.all(
+      fonts.map(async (f) => {
+        const fontFace = new FontFace(f.family, `url(${f.url}) format('${f.format}')`);
+        const loaded = await fontFace.load();
+        document.fonts.add(loaded);
+      })
+    )
+      .then(() => continueRender(handle))
+      .catch((err) => {
+        console.error("Failed to load a custom font:", err);
+        continueRender(handle);
+      });
+  }, [fonts]);
+}
+
+/** Ducks background music under any active caption (i.e. while someone is speaking). */
+function useDuckedMusicVolume(
+  captions: CaptionVideoProps["captions"],
+  baseVolume: number,
+  fps: number
+) {
+  return useMemo(() => {
+    return (frame: number) => {
+      const t = frame / fps;
+      const isSpeaking = captions.some((c) => t >= c.start - 0.15 && t <= c.end + 0.15);
+      return isSpeaking ? baseVolume * 0.25 : baseVolume;
+    };
+  }, [captions, baseVolume, fps]);
+}
+
+export const CaptionVideo: React.FC<CaptionVideoProps> = ({
+  videoSrc,
+  captions,
+  style,
+  customFonts,
+  musicSrc,
+  musicVolume,
+}) => {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   const currentTime = frame / fps;
   const { isRendering } = getRemotionEnvironment();
+
+  useCustomFonts(customFonts);
+  const duckedVolume = useDuckedMusicVolume(captions, musicVolume ?? 0.5, fps);
 
   const activeCaption = useMemo(
     () => captions.find((c) => currentTime >= c.start && currentTime <= c.end),
@@ -96,7 +156,14 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({ videoSrc, captions, 
       {videoSrc &&
         // OffthreadVideo gives frame-exact extraction needed for export, but stutters when
         // driven by the browser Player during live preview — use native <Video> there instead.
-        (isRendering ? <OffthreadVideo src={videoSrc} /> : <Video src={videoSrc} />)}
+        // objectFit:"cover" crops the source to fill the composition frame when a platform
+        // export preset (9:16/1:1/16:9) doesn't match the source video's own aspect ratio.
+        (isRendering ? (
+          <OffthreadVideo src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <Video src={videoSrc} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ))}
+      {musicSrc && <Audio src={musicSrc} volume={duckedVolume} />}
       <AbsoluteFill
         style={{
           display: "flex",

@@ -10,6 +10,29 @@ export interface Caption {
   start: number;
   end: number;
   words: CaptionWord[];
+  /**
+   * Manually-assigned speaker label. Whisper doesn't do speaker diarization, so this is
+   * set by hand in the editor rather than detected automatically — each distinct label
+   * gets a consistent color derived from SPEAKER_PALETTE.
+   */
+  speaker?: string;
+}
+
+export const SPEAKER_PALETTE = [
+  "#22D3EE", // cyan
+  "#F472B6", // pink
+  "#FBBF24", // amber
+  "#A78BFA", // violet
+  "#34D399", // emerald
+  "#FB923C", // orange
+];
+
+export function colorForSpeaker(speaker: string): string {
+  let hash = 0;
+  for (let i = 0; i < speaker.length; i++) {
+    hash = (hash * 31 + speaker.charCodeAt(i)) >>> 0;
+  }
+  return SPEAKER_PALETTE[hash % SPEAKER_PALETTE.length];
 }
 
 export type CaptionAnimation =

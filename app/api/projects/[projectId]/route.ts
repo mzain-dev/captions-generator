@@ -30,11 +30,15 @@ export async function PUT(
     name?: string;
     captions?: Caption[];
     style?: CaptionStyle;
+    musicTrackId?: string | null;
+    musicVolume?: number;
   };
 
   if (body.name !== undefined) project.name = body.name;
   if (body.captions !== undefined) project.captions = body.captions;
   if (body.style !== undefined) project.style = body.style;
+  if (body.musicTrackId !== undefined) project.musicTrackId = body.musicTrackId ?? undefined;
+  if (body.musicVolume !== undefined) project.musicVolume = body.musicVolume;
   project.updatedAt = new Date().toISOString();
 
   saveProject(project);

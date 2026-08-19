@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { renderCaptionVideo, RenderError } from "@/lib/renderer";
 import { renderOutputPath, toPublicVideoUrl, toPublicRenderUrl } from "@/lib/paths";
 import { loadProject, saveProject } from "@/lib/project";
+import { listFonts, toPublicFontUrl } from "@/lib/fonts";
+import { listMusic, toPublicMusicUrl } from "@/lib/music";
 import type { Caption, CaptionStyle } from "@/types/caption";
 
 interface RenderJob {
@@ -13,12 +15,32 @@ interface RenderJob {
 
 const jobs = new Map<string, RenderJob>();
 
+type CropAspect = "original" | "9:16" | "1:1" | "16:9";
+
+/** Target composition dimensions for each platform preset; the video crops-to-fill via CSS. */
+function resolveCropDimensions(
+  aspect: CropAspect | undefined,
+  original: { width: number; height: number }
+): { width: number; height: number } {
+  switch (aspect) {
+    case "9:16":
+      return { width: 1080, height: 1920 };
+    case "1:1":
+      return { width: 1080, height: 1080 };
+    case "16:9":
+      return { width: 1920, height: 1080 };
+    default:
+      return original;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { projectId, captions, style } = body as {
+  const { projectId, captions, style, cropAspect } = body as {
     projectId: string;
     captions: Caption[];
     style: CaptionStyle;
+    cropAspect?: CropAspect;
   };
 
   if (!projectId) {
@@ -50,15 +72,36 @@ export async function POST(request: NextRequest) {
     request.nextUrl.origin
   ).toString();
 
+  const targetDimensions = resolveCropDimensions(cropAspect, {
+    width: project.video.width,
+    height: project.video.height,
+  });
+
+  const customFonts = listFonts().map((font) => ({
+    family: font.family,
+    url: new URL(toPublicFontUrl(font), request.nextUrl.origin).toString(),
+    format: font.format,
+  }));
+
+  const musicTrack = project.musicTrackId
+    ? listMusic().find((t) => t.id === project.musicTrackId)
+    : undefined;
+  const musicSrc = musicTrack
+    ? new URL(toPublicMusicUrl(musicTrack), request.nextUrl.origin).toString()
+    : undefined;
+
   renderCaptionVideo(
     {
       videoSrc,
       captions: project.captions,
       style: project.style,
-      width: project.video.width,
-      height: project.video.height,
+      width: targetDimensions.width,
+      height: targetDimensions.height,
       fps: project.video.fps,
       durationInSeconds: project.video.durationInSeconds,
+      customFonts,
+      musicSrc,
+      musicVolume: project.musicVolume,
     },
     outputPath,
     (progress) => {

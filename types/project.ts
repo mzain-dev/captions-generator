@@ -29,6 +29,8 @@ export interface ProjectData {
   transcript?: Transcript;
   captions: Caption[];
   style: CaptionStyle;
+  musicTrackId?: string;
+  musicVolume?: number;
   renderPath?: string;
   createdAt: string;
   updatedAt: string;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import { extractAudio, FFmpegError } from "@/lib/ffmpeg";
 import { transcribeAudio, TranscriptionError } from "@/lib/openai";
-import { transliterateToRomanUrdu } from "@/lib/transliterate";
+import { transliterateToRoman, isRomanizableLanguage } from "@/lib/transliterate";
 import { normalizeTranscript, saveTranscript, loadTranscript } from "@/lib/transcript";
 import { generateCaptions } from "@/lib/captions";
 import { audioPath, transcriptJsonPath } from "@/lib/paths";
@@ -50,20 +50,25 @@ export async function POST(request: NextRequest) {
         const raw = await transcribeAudio(audioOut);
         transcript = normalizeTranscript(raw);
 
-        // Whisper transcribes in the spoken language's native script. For Urdu specifically,
-        // captions are far more commonly read in Roman Urdu (Latin letters), so transliterate
-        // word-by-word — preserving the per-word timestamps exactly — before caching/chunking.
-        if (transcript.language?.toLowerCase() === "urdu") {
+        // Whisper transcribes in the spoken language's native script. For languages that
+        // are far more commonly read/typed in a casual Latin-letter spelling (Roman Urdu,
+        // Hinglish, Arabizi, etc.), transliterate word-by-word — preserving the per-word
+        // timestamps exactly — before caching/chunking.
+        if (isRomanizableLanguage(transcript.language)) {
           try {
-            const romanized = await transliterateToRomanUrdu(
-              transcript.words.map((w) => w.text)
+            const romanized = await transliterateToRoman(
+              transcript.words.map((w) => w.text),
+              transcript.language!
             );
             transcript = {
               ...transcript,
               words: transcript.words.map((w, i) => ({ ...w, text: romanized[i] })),
             };
           } catch (err) {
-            console.error("Roman Urdu transliteration failed, keeping Urdu script:", err);
+            console.error(
+              `Roman transliteration failed for language "${transcript.language}", keeping native script:`,
+              err
+            );
           }
         }
 

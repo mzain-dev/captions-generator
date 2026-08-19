@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Caption } from "@/types/caption";
+import { colorForSpeaker } from "@/types/caption";
 import {
   mergeCaptions,
   rescaleCaptionTiming,
@@ -23,6 +24,11 @@ export function CaptionListEditor({
   onSelect,
 }: CaptionListEditorProps) {
   const [splittingId, setSplittingId] = useState<string | null>(null);
+
+  const knownSpeakers = useMemo(
+    () => Array.from(new Set(captions.map((c) => c.speaker).filter((s): s is string => !!s))),
+    [captions]
+  );
 
   const updateAt = (index: number, next: Caption) => {
     const copy = [...captions];
@@ -158,6 +164,30 @@ export function CaptionListEditor({
                   }
                   className="w-16 bg-neutral-800 rounded px-1 py-0.5"
                 />
+              </label>
+              <label className="flex items-center gap-1 flex-1 min-w-0">
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{
+                    backgroundColor: caption.speaker ? colorForSpeaker(caption.speaker) : "#525252",
+                  }}
+                />
+                <input
+                  type="text"
+                  list={`speakers-${index}`}
+                  placeholder="Speaker"
+                  value={caption.speaker ?? ""}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) =>
+                    updateAt(index, { ...caption, speaker: e.target.value || undefined })
+                  }
+                  className="w-full min-w-0 bg-neutral-800 rounded px-1.5 py-0.5 text-neutral-300"
+                />
+                <datalist id={`speakers-${index}`}>
+                  {knownSpeakers.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </label>
             </div>
           </div>
