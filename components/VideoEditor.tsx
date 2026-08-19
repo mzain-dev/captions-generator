@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerRef } from "@remotion/player";
 import { useRouter } from "next/navigation";
 import type { Caption, CaptionStyle } from "@/types/caption";
+import { DEFAULT_CAPTION_STYLE } from "@/types/caption";
 import type { ProjectData } from "@/types/project";
 import { CaptionPreview } from "@/components/CaptionPreview";
 import { Timeline } from "@/components/Timeline";
@@ -51,7 +52,8 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
 
       const proj = data.project as ProjectData;
       setProject(proj);
-      setStyle(proj.style);
+      // Merge with defaults so projects saved before a style field was added still work.
+      setStyle({ ...DEFAULT_CAPTION_STYLE, ...proj.style });
 
       if (proj.status === "ready" || proj.status === "rendered" || proj.captions.length > 0) {
         setCaptions(proj.captions);

@@ -29,6 +29,8 @@ export interface CaptionStyle {
   fontWeight: number;
   color: string;
   highlightColor: string;
+  highlightBackgroundColor: string;
+  highlightBackgroundOpacity: number;
   backgroundColor: string;
   backgroundOpacity: number;
   position: CaptionPosition;
@@ -47,6 +49,8 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   fontWeight: 800,
   color: "#FFFFFF",
   highlightColor: "#22D3EE",
+  highlightBackgroundColor: "#22D3EE",
+  highlightBackgroundOpacity: 0,
   backgroundColor: "#000000",
   backgroundOpacity: 0.6,
   position: "bottom",

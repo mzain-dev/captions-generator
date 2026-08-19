@@ -84,12 +84,9 @@ const Word: React.FC<WordProps> = ({
     return null;
   }
 
-  let color = style.color;
-  if (style.animation === "karaoke") {
-    color = hasStarted ? style.highlightColor : style.color;
-  } else if (isActive) {
-    color = style.highlightColor;
-  }
+  const isHighlighted = style.animation === "karaoke" ? hasStarted : isActive;
+  const color = isHighlighted ? style.highlightColor : style.color;
+  const hasHighlightBackground = isHighlighted && style.highlightBackgroundOpacity > 0;
 
   let transform = "none";
   if (style.animation === "pop" && isActive) {
@@ -130,6 +127,12 @@ const Word: React.FC<WordProps> = ({
         display: "inline-block",
         textShadow: "0 2px 8px rgba(0,0,0,0.45)",
         transition: style.animation === "none" ? undefined : "none",
+        backgroundColor: hasHighlightBackground
+          ? hexToRgba(style.highlightBackgroundColor, style.highlightBackgroundOpacity)
+          : "transparent",
+        padding: hasHighlightBackground ? `${style.fontSize * 0.06}px ${style.fontSize * 0.16}px` : 0,
+        margin: hasHighlightBackground ? `-${style.fontSize * 0.06}px -${style.fontSize * 0.16}px` : 0,
+        borderRadius: style.fontSize * 0.15,
       }}
     >
       {text}

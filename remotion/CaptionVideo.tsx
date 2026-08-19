@@ -31,6 +31,8 @@ const captionStyleSchema = z.object({
   fontWeight: z.number(),
   color: z.string(),
   highlightColor: z.string(),
+  highlightBackgroundColor: z.string(),
+  highlightBackgroundOpacity: z.number(),
   backgroundColor: z.string(),
   backgroundOpacity: z.number(),
   position: z.enum(["top", "center", "bottom", "custom"]),

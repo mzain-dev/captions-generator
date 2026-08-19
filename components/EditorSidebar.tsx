@@ -109,6 +109,27 @@ export function EditorSidebar({ style, onChange }: EditorSidebarProps) {
           />
         </Field>
 
+        <Field label="Highlight bg color">
+          <input
+            type="color"
+            value={style.highlightBackgroundColor}
+            onChange={(e) => onChange({ highlightBackgroundColor: e.target.value })}
+            className="h-7 w-14 bg-transparent"
+          />
+        </Field>
+
+        <Field label={`Highlight bg opacity (${style.highlightBackgroundOpacity.toFixed(2)})`}>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={style.highlightBackgroundOpacity}
+            onChange={(e) => onChange({ highlightBackgroundOpacity: Number(e.target.value) })}
+            className="w-40"
+          />
+        </Field>
+
         <Field label="Background">
           <input
             type="color"

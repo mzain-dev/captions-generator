@@ -73,11 +73,16 @@ export async function POST(request: NextRequest) {
       if (p) {
         p.status = "rendered";
         p.renderPath = outputPath;
+        p.error = undefined;
         p.updatedAt = new Date().toISOString();
         saveProject(p);
       }
     })
     .catch((err) => {
+      console.error("Render failed for", projectId, ":", err);
+      if (err instanceof RenderError && err.cause) {
+        console.error("Underlying cause:", err.cause);
+      }
       const message = err instanceof RenderError ? err.message : "Rendering failed unexpectedly.";
       jobs.set(projectId, { progress: 0, status: "error", error: message });
       const p = loadProject(projectId);
