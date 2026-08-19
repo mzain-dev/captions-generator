@@ -81,8 +81,15 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({ videoSrc, captions, 
   const justifyContent =
     style.position === "top" ? "flex-start" : style.position === "center" ? "center" : "flex-end";
 
+  // AbsoluteFill defaults to top:0/bottom:0 (stretched to fill the frame). Overriding only
+  // `top` for custom placement left `bottom:0` in place too, which pins the container's
+  // height to 0 and makes the translateY(-50%) centering trick a no-op — the caption never
+  // actually moved. Clearing `bottom` lets the container size to its content so `top` +
+  // translateY(-50%) can center it at the requested Y position.
   const customOffset =
-    style.position === "custom" ? { top: `${style.customY}%`, transform: "translateY(-50%)" } : {};
+    style.position === "custom"
+      ? { top: `${style.customY}%`, bottom: "auto", height: "auto", transform: "translateY(-50%)" }
+      : {};
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
