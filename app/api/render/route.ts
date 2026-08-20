@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
 import { renderCaptionVideo, RenderError } from "@/lib/renderer";
-import { renderOutputPath, toPublicVideoUrl, toPublicRenderUrl } from "@/lib/paths";
+import { renderOutputPath, toPublicVideoUrl, toPublicRenderUrl, projectRenderDir } from "@/lib/paths";
 import { loadProject, saveProject } from "@/lib/project";
 import { listFonts, toPublicFontUrl } from "@/lib/fonts";
 import { listMusic, toPublicMusicUrl } from "@/lib/music";
+import { listLogos, toPublicLogoUrl } from "@/lib/logos";
 import type { Caption, CaptionStyle } from "@/types/caption";
+import type { RenderHistoryEntry } from "@/types/project";
 
 interface RenderJob {
   progress: number;
@@ -14,6 +19,9 @@ interface RenderJob {
 }
 
 const jobs = new Map<string, RenderJob>();
+
+// Keep disk usage bounded for a feature whose whole point is accumulating files over time.
+const MAX_RENDER_HISTORY = 15;
 
 type CropAspect = "original" | "9:16" | "1:1" | "16:9";
 
@@ -61,7 +69,8 @@ export async function POST(request: NextRequest) {
   project.status = "rendering";
   saveProject(project);
 
-  const outputPath = renderOutputPath(projectId);
+  const renderId = randomUUID().slice(0, 8);
+  const outputPath = renderOutputPath(projectId, renderId);
   jobs.set(projectId, { progress: 0, status: "rendering" });
 
   // The Remotion renderer's compositor needs an HTTP-reachable URL for the video asset
@@ -90,6 +99,26 @@ export async function POST(request: NextRequest) {
     ? new URL(toPublicMusicUrl(musicTrack), request.nextUrl.origin).toString()
     : undefined;
 
+  const logoAsset = project.logo?.logoId
+    ? listLogos().find((l) => l.id === project.logo?.logoId)
+    : undefined;
+  const logoProp =
+    logoAsset && project.logo
+      ? {
+          logoSrc: new URL(toPublicLogoUrl(logoAsset), request.nextUrl.origin).toString(),
+          x: project.logo.x,
+          y: project.logo.y,
+          scale: project.logo.scale,
+          opacity: project.logo.opacity,
+          backgroundColor: project.logo.backgroundColor,
+          backgroundOpacity: project.logo.backgroundOpacity,
+          backgroundPadding: project.logo.backgroundPadding,
+        }
+      : undefined;
+
+  const introProp = project.intro?.enabled ? project.intro : undefined;
+  const outroProp = project.outro?.enabled ? project.outro : undefined;
+
   renderCaptionVideo(
     {
       videoSrc,
@@ -103,6 +132,9 @@ export async function POST(request: NextRequest) {
       musicSrc,
       musicVolume: project.musicVolume,
       musicDurationInSeconds: musicTrack?.durationInSeconds,
+      logo: logoProp,
+      intro: introProp,
+      outro: outroProp,
     },
     outputPath,
     (progress) => {
@@ -111,7 +143,7 @@ export async function POST(request: NextRequest) {
     }
   )
     .then(() => {
-      const renderUrl = toPublicRenderUrl(projectId);
+      const renderUrl = toPublicRenderUrl(projectId, renderId);
       jobs.set(projectId, { progress: 1, status: "done", renderUrl });
       const p = loadProject(projectId);
       if (p) {
@@ -119,6 +151,23 @@ export async function POST(request: NextRequest) {
         p.renderPath = outputPath;
         p.error = undefined;
         p.updatedAt = new Date().toISOString();
+
+        const entry: RenderHistoryEntry = {
+          id: renderId,
+          fileName: path.basename(outputPath),
+          url: renderUrl,
+          cropAspect: cropAspect ?? "original",
+          createdAt: new Date().toISOString(),
+        };
+        const history = [...(p.renderHistory ?? []), entry];
+        while (history.length > MAX_RENDER_HISTORY) {
+          const removed = history.shift();
+          if (removed) {
+            fs.rmSync(path.join(projectRenderDir(projectId), removed.fileName), { force: true });
+          }
+        }
+        p.renderHistory = history;
+
         saveProject(p);
       }
     })

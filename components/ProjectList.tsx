@@ -104,6 +104,14 @@ export function ProjectList({ refreshKey }: { refreshKey?: number }) {
             >
               {STATUS_LABEL[project.status]}
             </span>
+            <a
+              href={`/api/projects/${project.projectId}/archive`}
+              download
+              title="Download a full backup of this project"
+              className="text-xs px-2 py-1 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 transition-colors shrink-0"
+            >
+              Backup
+            </a>
             <button
               onClick={() => handleDelete(project.projectId, project.name)}
               className="text-xs px-2 py-1 rounded text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"

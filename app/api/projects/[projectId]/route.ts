@@ -4,6 +4,8 @@ import { loadProject, saveProject, deleteProject } from "@/lib/project";
 import { projectVideoDir, projectAudioDir, projectTranscriptDir, projectRenderDir } from "@/lib/paths";
 import type { Caption, CaptionStyle } from "@/types/caption";
 import type { ScriptMode } from "@/types/transcript";
+import type { LogoSettings } from "@/types/logo";
+import type { TitleCardSettings } from "@/types/titlecard";
 
 export async function GET(
   _request: NextRequest,
@@ -34,6 +36,9 @@ export async function PUT(
     musicTrackId?: string | null;
     musicVolume?: number;
     scriptMode?: ScriptMode;
+    logo?: LogoSettings | null;
+    intro?: TitleCardSettings | null;
+    outro?: TitleCardSettings | null;
   };
 
   if (body.name !== undefined) project.name = body.name;
@@ -42,6 +47,9 @@ export async function PUT(
   if (body.musicTrackId !== undefined) project.musicTrackId = body.musicTrackId ?? undefined;
   if (body.musicVolume !== undefined) project.musicVolume = body.musicVolume;
   if (body.scriptMode !== undefined) project.scriptMode = body.scriptMode;
+  if (body.logo !== undefined) project.logo = body.logo ?? undefined;
+  if (body.intro !== undefined) project.intro = body.intro ?? undefined;
+  if (body.outro !== undefined) project.outro = body.outro ?? undefined;
   project.updatedAt = new Date().toISOString();
 
   saveProject(project);

@@ -46,11 +46,14 @@ storage/transcripts/*
 storage/projects/*
 storage/presets.json
 storage/fonts.json
+storage/music.json
+storage/logos.json
 !storage/**/.gitkeep
 public/media/videos/*
 public/media/renders/*
 public/media/fonts/*
 public/media/music/*
+public/media/logos/*
 !public/media/**/.gitkeep
 
 # local test media & configs

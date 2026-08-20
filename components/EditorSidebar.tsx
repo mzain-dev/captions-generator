@@ -5,6 +5,10 @@ import type { CaptionAnimation, CaptionPosition, CaptionStyle } from "@/types/ca
 import type { CustomFont } from "@/types/font";
 import type { MusicTrack } from "@/types/music";
 import type { StylePreset } from "@/types/preset";
+import type { LogoAsset, LogoSettings } from "@/types/logo";
+import { DEFAULT_LOGO_SETTINGS, LOGO_POSITION_PRESETS } from "@/types/logo";
+import type { TitleCardSettings } from "@/types/titlecard";
+import { DEFAULT_INTRO_SETTINGS, DEFAULT_OUTRO_SETTINGS } from "@/types/titlecard";
 
 interface EditorSidebarProps {
   style: CaptionStyle;
@@ -17,6 +21,14 @@ interface EditorSidebarProps {
   onMusicTrackChange: (trackId: string | undefined) => void;
   musicVolume: number;
   onMusicVolumeChange: (volume: number) => void;
+  logos: LogoAsset[];
+  onLogosChange: (logos: LogoAsset[]) => void;
+  logo: LogoSettings | undefined;
+  onLogoChange: (logo: LogoSettings | undefined) => void;
+  intro: TitleCardSettings | undefined;
+  onIntroChange: (intro: TitleCardSettings | undefined) => void;
+  outro: TitleCardSettings | undefined;
+  onOutroChange: (outro: TitleCardSettings | undefined) => void;
 }
 
 const BUILT_IN_FONTS = [
@@ -62,6 +74,87 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function TitleCardEditor({
+  label,
+  value,
+  defaults,
+  onChange,
+}: {
+  label: string;
+  value: TitleCardSettings | undefined;
+  defaults: TitleCardSettings;
+  onChange: (next: TitleCardSettings | undefined) => void;
+}) {
+  const enabled = value?.enabled ?? false;
+  const current = value ?? defaults;
+
+  return (
+    <Section title={label}>
+      <Field label="Enabled">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange({ ...current, enabled: e.target.checked })}
+        />
+      </Field>
+
+      {enabled && (
+        <>
+          <label className="block text-sm text-neutral-300 space-y-1">
+            <span>Title</span>
+            <input
+              type="text"
+              value={current.text}
+              onChange={(e) => onChange({ ...current, text: e.target.value })}
+              className="w-full bg-neutral-800 rounded px-2 py-1.5 text-sm"
+            />
+          </label>
+
+          <label className="block text-sm text-neutral-300 space-y-1">
+            <span>Subtitle (optional)</span>
+            <input
+              type="text"
+              value={current.subtitle}
+              onChange={(e) => onChange({ ...current, subtitle: e.target.value })}
+              className="w-full bg-neutral-800 rounded px-2 py-1.5 text-sm"
+            />
+          </label>
+
+          <Field label={`Duration (${current.durationInSeconds.toFixed(1)}s)`}>
+            <input
+              type="range"
+              min={1}
+              max={8}
+              step={0.5}
+              value={current.durationInSeconds}
+              onChange={(e) => onChange({ ...current, durationInSeconds: Number(e.target.value) })}
+              className="w-40"
+            />
+          </Field>
+
+          <Field label="Background">
+            <input
+              type="color"
+              value={current.backgroundColor}
+              onChange={(e) => onChange({ ...current, backgroundColor: e.target.value })}
+              className="h-7 w-14 bg-transparent"
+            />
+          </Field>
+
+          <Field label="Text color">
+            <input
+              type="color"
+              value={current.textColor}
+              onChange={(e) => onChange({ ...current, textColor: e.target.value })}
+              className="h-7 w-14 bg-transparent"
+            />
+          </Field>
+        </>
+      )}
+    </Section>
+  );
+}
+
 export function EditorSidebar({
   style,
   onChange,
@@ -73,12 +166,22 @@ export function EditorSidebar({
   onMusicTrackChange,
   musicVolume,
   onMusicVolumeChange,
+  logos,
+  onLogosChange,
+  logo,
+  onLogoChange,
+  intro,
+  onIntroChange,
+  outro,
+  onOutroChange,
 }: EditorSidebarProps) {
   const [presets, setPresets] = useState<StylePreset[]>([]);
   const fontInputRef = useRef<HTMLInputElement>(null);
   const musicInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [fontUploadError, setFontUploadError] = useState<string | null>(null);
   const [musicUploadError, setMusicUploadError] = useState<string | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/presets")
@@ -141,6 +244,26 @@ export function EditorSidebar({
     onMusicTracksChange(musicTracks.filter((t) => t.id !== id));
     if (musicTrackId === id) onMusicTrackChange(undefined);
     await fetch(`/api/music/${id}`, { method: "DELETE" }).catch(() => {});
+  };
+
+  const uploadLogo = async (file: File) => {
+    setLogoUploadError(null);
+    const formData = new FormData();
+    formData.append("logo", file);
+    const res = await fetch("/api/logos", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      setLogoUploadError(data.error ?? "Upload failed.");
+      return;
+    }
+    onLogosChange([...logos, data.logo]);
+    onLogoChange({ ...(logo ?? DEFAULT_LOGO_SETTINGS), logoId: data.logo.id });
+  };
+
+  const deleteLogo = async (id: string) => {
+    onLogosChange(logos.filter((l) => l.id !== id));
+    if (logo?.logoId === id) onLogoChange(undefined);
+    await fetch(`/api/logos/${id}`, { method: "DELETE" }).catch(() => {});
   };
 
   return (
@@ -457,6 +580,156 @@ export function EditorSidebar({
           </p>
         )}
       </Section>
+
+      <Section title="Logo / Watermark">
+        <select
+          value={logo?.logoId ?? ""}
+          onChange={(e) => {
+            if (e.target.value === "__upload__") {
+              logoInputRef.current?.click();
+              return;
+            }
+            if (!e.target.value) {
+              onLogoChange(undefined);
+              return;
+            }
+            onLogoChange({ ...(logo ?? DEFAULT_LOGO_SETTINGS), logoId: e.target.value });
+          }}
+          className="bg-neutral-800 rounded px-2 py-1.5 text-sm w-full"
+        >
+          <option value="">None</option>
+          {logos.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+          <option value="__upload__">+ Upload logo...</option>
+        </select>
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept=".png,.jpg,.jpeg,.webp,.svg"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) uploadLogo(file);
+            e.target.value = "";
+          }}
+        />
+        {logoUploadError && <p className="text-[11px] text-red-400">{logoUploadError}</p>}
+
+        {logos.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {logos.map((l) => (
+              <span
+                key={l.id}
+                className="text-[11px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 flex items-center gap-1"
+              >
+                {l.name}
+                <button onClick={() => deleteLogo(l.id)} className="hover:text-red-400">
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {logo?.logoId && (
+          <>
+            <div className="grid grid-cols-2 gap-1.5">
+              {LOGO_POSITION_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  onClick={() => onLogoChange({ ...logo, x: p.x, y: p.y })}
+                  className={`text-[11px] rounded px-2 py-1 border transition-colors ${
+                    logo.x === p.x && logo.y === p.y
+                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <Field label={`X (${logo.x}%)`}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={logo.x}
+                onChange={(e) => onLogoChange({ ...logo, x: Number(e.target.value) })}
+                className="w-40"
+              />
+            </Field>
+            <Field label={`Y (${logo.y}%)`}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={logo.y}
+                onChange={(e) => onLogoChange({ ...logo, y: Number(e.target.value) })}
+                className="w-40"
+              />
+            </Field>
+            <Field label={`Size (${logo.scale}%)`}>
+              <input
+                type="range"
+                min={4}
+                max={50}
+                value={logo.scale}
+                onChange={(e) => onLogoChange({ ...logo, scale: Number(e.target.value) })}
+                className="w-40"
+              />
+            </Field>
+            <Field label={`Opacity (${logo.opacity.toFixed(2)})`}>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={logo.opacity}
+                onChange={(e) => onLogoChange({ ...logo, opacity: Number(e.target.value) })}
+                className="w-40"
+              />
+            </Field>
+            <Field label="Background">
+              <input
+                type="color"
+                value={logo.backgroundColor}
+                onChange={(e) => onLogoChange({ ...logo, backgroundColor: e.target.value })}
+                className="h-7 w-14 bg-transparent"
+              />
+            </Field>
+            <Field label={`Bg opacity (${logo.backgroundOpacity.toFixed(2)})`}>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={logo.backgroundOpacity}
+                onChange={(e) => onLogoChange({ ...logo, backgroundOpacity: Number(e.target.value) })}
+                className="w-40"
+              />
+            </Field>
+            {logo.backgroundOpacity > 0 && (
+              <Field label={`Bg padding (${logo.backgroundPadding}px)`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={40}
+                  value={logo.backgroundPadding}
+                  onChange={(e) => onLogoChange({ ...logo, backgroundPadding: Number(e.target.value) })}
+                  className="w-40"
+                />
+              </Field>
+            )}
+          </>
+        )}
+      </Section>
+
+      <TitleCardEditor label="Intro card" value={intro} defaults={DEFAULT_INTRO_SETTINGS} onChange={onIntroChange} />
+      <TitleCardEditor label="Outro card" value={outro} defaults={DEFAULT_OUTRO_SETTINGS} onChange={onOutroChange} />
     </div>
   );
 }

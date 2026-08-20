@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Caption, CaptionStyle } from "@/types/caption";
+import type { RenderHistoryEntry } from "@/types/project";
 
 interface ExportButtonProps {
   projectId: string;
   captions: Caption[];
   style: CaptionStyle;
+  renderHistory?: RenderHistoryEntry[];
 }
 
 export type CropAspect = "original" | "9:16" | "1:1" | "16:9";
@@ -24,9 +26,23 @@ type ExportState =
   | { phase: "done"; renderUrl: string }
   | { phase: "error"; message: string };
 
-export function ExportButton({ projectId, captions, style }: ExportButtonProps) {
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function ExportButton({ projectId, captions, style, renderHistory }: ExportButtonProps) {
   const [state, setState] = useState<ExportState>({ phase: "idle" });
   const [cropAspect, setCropAspect] = useState<CropAspect>("original");
+  // Seeded once from the project's saved history; renders completed during this session are
+  // appended locally below rather than re-synced from the prop (the parent doesn't refetch
+  // the project after each render, so the prop is effectively static after mount anyway).
+  const [history, setHistory] = useState<RenderHistoryEntry[]>(renderHistory ?? []);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -63,6 +79,16 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
         } else if (job.status === "done") {
           stopPolling();
           setState({ phase: "done", renderUrl: job.renderUrl });
+          setHistory((prev) => [
+            ...prev,
+            {
+              id: `local_${Date.now()}`,
+              fileName: job.renderUrl.split("/").pop() ?? "",
+              url: job.renderUrl,
+              cropAspect,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
         } else if (job.status === "error") {
           stopPolling();
           setState({ phase: "error", message: job.error ?? "Rendering failed." });
@@ -106,6 +132,32 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
     </div>
   );
 
+  const historyButton = history.length > 0 && (
+    <div className="relative">
+      <button
+        onClick={() => setHistoryOpen((v) => !v)}
+        className="px-2 py-2 rounded-lg bg-neutral-800 text-xs text-neutral-300 hover:bg-neutral-700 transition-colors"
+      >
+        History ({history.length}) ▾
+      </button>
+      {historyOpen && (
+        <div className="absolute right-0 top-full mt-1 w-64 max-h-72 overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl z-50 py-1">
+          {[...history].reverse().map((entry) => (
+            <a
+              key={entry.id}
+              href={entry.url}
+              download
+              className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-800"
+            >
+              <span>{formatTime(entry.createdAt)}</span>
+              <span className="text-neutral-500">{entry.cropAspect}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (state.phase === "rendering") {
     const pct = Math.round(state.progress * 100);
     return (
@@ -130,7 +182,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
           download
           className="px-4 py-2 rounded-lg bg-emerald-500 text-black text-sm font-semibold hover:bg-emerald-400 transition-colors"
         >
-          Download final.mp4
+          Download video
         </a>
         <button
           onClick={startExport}
@@ -138,6 +190,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
         >
           Re-export
         </button>
+        {historyButton}
         {subtitleLinks}
       </div>
     );
@@ -154,6 +207,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
         >
           Retry export
         </button>
+        {historyButton}
         {subtitleLinks}
       </div>
     );
@@ -168,6 +222,7 @@ export function ExportButton({ projectId, captions, style }: ExportButtonProps) 
       >
         Export video
       </button>
+      {historyButton}
       {subtitleLinks}
     </div>
   );

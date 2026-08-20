@@ -16,12 +16,21 @@ export const RemotionRoot: React.FC = () => {
       width={defaultCaptionVideoProps.width}
       height={defaultCaptionVideoProps.height}
       defaultProps={defaultCaptionVideoProps}
-      calculateMetadata={async ({ props }) => ({
-        durationInFrames: Math.max(1, Math.round(props.durationInSeconds * props.fps)),
-        fps: props.fps,
-        width: props.width,
-        height: props.height,
-      })}
+      calculateMetadata={async ({ props }) => {
+        const introFrames = props.intro
+          ? Math.max(1, Math.round(props.intro.durationInSeconds * props.fps))
+          : 0;
+        const mainFrames = Math.max(1, Math.round(props.durationInSeconds * props.fps));
+        const outroFrames = props.outro
+          ? Math.max(1, Math.round(props.outro.durationInSeconds * props.fps))
+          : 0;
+        return {
+          durationInFrames: introFrames + mainFrames + outroFrames,
+          fps: props.fps,
+          width: props.width,
+          height: props.height,
+        };
+      }}
     />
   );
 };

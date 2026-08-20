@@ -4,6 +4,7 @@ import {
   Audio,
   Loop,
   OffthreadVideo,
+  Sequence,
   Video,
   continueRender,
   delayRender,
@@ -13,6 +14,8 @@ import {
 } from "remotion";
 import { z } from "zod";
 import { Caption } from "./Caption";
+import { Logo } from "./Logo";
+import { TitleCard } from "./TitleCard";
 import { DEFAULT_CAPTION_STYLE } from "../types/caption";
 
 const captionWordSchema = z.object({
@@ -55,6 +58,25 @@ const customFontSchema = z.object({
   format: z.string(),
 });
 
+const logoOverlaySchema = z.object({
+  logoSrc: z.string(),
+  x: z.number(),
+  y: z.number(),
+  scale: z.number(),
+  opacity: z.number(),
+  backgroundColor: z.string(),
+  backgroundOpacity: z.number(),
+  backgroundPadding: z.number(),
+});
+
+const titleCardPropsSchema = z.object({
+  text: z.string(),
+  subtitle: z.string(),
+  durationInSeconds: z.number(),
+  backgroundColor: z.string(),
+  textColor: z.string(),
+});
+
 export const captionVideoSchema = z.object({
   videoSrc: z.string(),
   captions: z.array(captionSchema),
@@ -67,6 +89,9 @@ export const captionVideoSchema = z.object({
   musicSrc: z.string().optional(),
   musicVolume: z.number().optional(),
   musicDurationInSeconds: z.number().optional(),
+  logo: logoOverlaySchema.optional(),
+  intro: titleCardPropsSchema.optional(),
+  outro: titleCardPropsSchema.optional(),
 });
 
 export type CaptionVideoProps = z.infer<typeof captionVideoSchema>;
@@ -119,21 +144,18 @@ function useDuckedMusicVolume(
   }, [captions, baseVolume, fps]);
 }
 
-export const CaptionVideo: React.FC<CaptionVideoProps> = ({
-  videoSrc,
-  captions,
-  style,
-  customFonts,
-  musicSrc,
-  musicVolume,
-  musicDurationInSeconds,
-}) => {
+/** The video + captions + background music. Timed relative to its own Sequence (0 = video start). */
+const MainContent: React.FC<
+  Pick<
+    CaptionVideoProps,
+    "videoSrc" | "captions" | "style" | "musicSrc" | "musicVolume" | "musicDurationInSeconds"
+  >
+> = ({ videoSrc, captions, style, musicSrc, musicVolume, musicDurationInSeconds }) => {
   const frame = useCurrentFrame();
   const { fps, height } = useVideoConfig();
   const currentTime = frame / fps;
   const { isRendering } = getRemotionEnvironment();
 
-  useCustomFonts(customFonts);
   const duckedVolume = useDuckedMusicVolume(captions, musicVolume ?? 0.5, fps);
 
   const activeCaption = useMemo(
@@ -192,6 +214,58 @@ export const CaptionVideo: React.FC<CaptionVideoProps> = ({
           <Caption caption={activeCaption} style={style} currentTime={currentTime} />
         )}
       </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+export const CaptionVideo: React.FC<CaptionVideoProps> = (props) => {
+  const { videoSrc, captions, style, customFonts, musicSrc, musicVolume, musicDurationInSeconds, logo, intro, outro } =
+    props;
+  const { fps } = useVideoConfig();
+
+  useCustomFonts(customFonts);
+
+  const introFrames = intro ? Math.max(1, Math.round(intro.durationInSeconds * fps)) : 0;
+  const mainFrames = Math.max(1, Math.round(props.durationInSeconds * fps));
+  const outroFrames = outro ? Math.max(1, Math.round(outro.durationInSeconds * fps)) : 0;
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "black" }}>
+      {intro && (
+        <Sequence from={0} durationInFrames={introFrames} name="Intro">
+          <TitleCard
+            text={intro.text}
+            subtitle={intro.subtitle}
+            backgroundColor={intro.backgroundColor}
+            textColor={intro.textColor}
+          />
+        </Sequence>
+      )}
+
+      <Sequence from={introFrames} durationInFrames={mainFrames} name="Main">
+        <MainContent
+          videoSrc={videoSrc}
+          captions={captions}
+          style={style}
+          musicSrc={musicSrc}
+          musicVolume={musicVolume}
+          musicDurationInSeconds={musicDurationInSeconds}
+        />
+      </Sequence>
+
+      {outro && (
+        <Sequence from={introFrames + mainFrames} durationInFrames={outroFrames} name="Outro">
+          <TitleCard
+            text={outro.text}
+            subtitle={outro.subtitle}
+            backgroundColor={outro.backgroundColor}
+            textColor={outro.textColor}
+          />
+        </Sequence>
+      )}
+
+      {/* Persistent across intro/main/outro since a watermark should stay visible throughout. */}
+      {logo && <Logo {...logo} />}
     </AbsoluteFill>
   );
 };

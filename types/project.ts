@@ -1,5 +1,7 @@
 import type { Caption, CaptionStyle } from "./caption";
 import type { ScriptMode, Transcript } from "./transcript";
+import type { LogoSettings } from "./logo";
+import type { TitleCardSettings } from "./titlecard";
 
 export interface VideoMetadata {
   fileName: string;
@@ -19,6 +21,14 @@ export type ProjectStatus =
   | "rendered"
   | "error";
 
+export interface RenderHistoryEntry {
+  id: string;
+  fileName: string;
+  url: string;
+  cropAspect: string;
+  createdAt: string;
+}
+
 export interface ProjectData {
   projectId: string;
   name: string;
@@ -32,7 +42,11 @@ export interface ProjectData {
   scriptMode?: ScriptMode;
   musicTrackId?: string;
   musicVolume?: number;
+  logo?: LogoSettings;
+  intro?: TitleCardSettings;
+  outro?: TitleCardSettings;
   renderPath?: string;
+  renderHistory?: RenderHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 }

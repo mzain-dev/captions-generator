@@ -9,6 +9,8 @@ import type { ProjectData } from "@/types/project";
 import type { CustomFont } from "@/types/font";
 import type { MusicTrack } from "@/types/music";
 import type { ScriptMode, Transcript } from "@/types/transcript";
+import type { LogoAsset, LogoSettings } from "@/types/logo";
+import type { TitleCardSettings } from "@/types/titlecard";
 import { isRomanizableLanguage, romanizableLanguageName } from "@/lib/languages";
 import { generateCaptions } from "@/lib/captions";
 import { CaptionPreview } from "@/components/CaptionPreview";
@@ -56,6 +58,10 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
+  const [logos, setLogos] = useState<LogoAsset[]>([]);
+  const [logo, setLogo] = useState<LogoSettings | undefined>(undefined);
+  const [intro, setIntro] = useState<TitleCardSettings | undefined>(undefined);
+  const [outro, setOutro] = useState<TitleCardSettings | undefined>(undefined);
 
   const undoStack = useRef<EditorState[]>([]);
   const redoStack = useRef<EditorState[]>([]);
@@ -144,6 +150,9 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       setMusicTrackId(proj.musicTrackId);
       setMusicVolume(proj.musicVolume ?? 0.5);
       setScriptMode(proj.scriptMode);
+      setLogo(proj.logo);
+      setIntro(proj.intro);
+      setOutro(proj.outro);
 
       if (proj.status === "ready" || proj.status === "rendered" || proj.captions.length > 0) {
         setEditorState({ captions: proj.captions, style: mergedStyle });
@@ -185,6 +194,10 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       .then((r) => r.json())
       .then((d) => setMusicTracks(d.tracks ?? []))
       .catch(() => {});
+    fetch("/api/logos")
+      .then((r) => r.json())
+      .then((d) => setLogos(d.logos ?? []))
+      .catch(() => {});
   }, []);
 
   // Persist caption/style/music edits to the project file (debounced).
@@ -200,11 +213,34 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
           musicTrackId: musicTrackId ?? null,
           musicVolume,
           scriptMode,
+          logo: logo ?? null,
+          intro: intro ?? null,
+          outro: outro ?? null,
         }),
       }).catch(() => {});
     }, 600);
     return () => clearTimeout(timeout);
-  }, [captions, style, musicTrackId, musicVolume, scriptMode, project, projectId, loadState.phase]);
+  }, [
+    captions,
+    style,
+    musicTrackId,
+    musicVolume,
+    scriptMode,
+    logo,
+    intro,
+    outro,
+    project,
+    projectId,
+    loadState.phase,
+  ]);
+
+  // The Timeline/caption editor work in "seconds since the main video started" — but once
+  // an intro card is enabled, the Player's frame 0 is the start of the INTRO, not the video.
+  // This offset converts between the two everywhere the Player's raw frame is read or set.
+  const introOffsetFrames =
+    intro?.enabled && project?.video
+      ? Math.max(1, Math.round(intro.durationInSeconds * project.video.fps))
+      : 0;
 
   // Track playhead position and play state from the Remotion Player.
   useEffect(() => {
@@ -213,7 +249,7 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
 
     const onFrame = () => {
       const fps = project?.video?.fps ?? 30;
-      setCurrentTime(player.getCurrentFrame() / fps);
+      setCurrentTime((player.getCurrentFrame() - introOffsetFrames) / fps);
     };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
@@ -227,15 +263,15 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       player.removeEventListener("play", onPlay);
       player.removeEventListener("pause", onPause);
     };
-  }, [project, loadState.phase]);
+  }, [project, loadState.phase, introOffsetFrames]);
 
   const handleSeek = useCallback(
     (time: number) => {
       const fps = project?.video?.fps ?? 30;
-      playerRef.current?.seekTo(Math.round(time * fps));
+      playerRef.current?.seekTo(Math.round(time * fps) + introOffsetFrames);
       setCurrentTime(time);
     },
-    [project]
+    [project, introOffsetFrames]
   );
 
   const handlePlayPause = useCallback(() => {
@@ -373,8 +409,29 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
       : undefined,
     musicVolume,
     musicDurationInSeconds: selectedMusicTrack?.durationInSeconds,
+    logo: (() => {
+      const asset = logos.find((l) => l.id === logo?.logoId);
+      if (!logo?.logoId || !asset) return undefined;
+      return {
+        logoSrc: `/media/logos/${asset.id}${asset.fileName.slice(asset.fileName.lastIndexOf("."))}`,
+        x: logo.x,
+        y: logo.y,
+        scale: logo.scale,
+        opacity: logo.opacity,
+        backgroundColor: logo.backgroundColor,
+        backgroundOpacity: logo.backgroundOpacity,
+        backgroundPadding: logo.backgroundPadding,
+      };
+    })(),
+    intro: intro?.enabled ? intro : undefined,
+    outro: outro?.enabled ? outro : undefined,
   };
-  const durationInFrames = Math.max(1, Math.round(project.video.durationInSeconds * project.video.fps));
+  const outroFrames =
+    outro?.enabled ? Math.max(1, Math.round(outro.durationInSeconds * project.video.fps)) : 0;
+  const durationInFrames = Math.max(
+    1,
+    introOffsetFrames + Math.round(project.video.durationInSeconds * project.video.fps) + outroFrames
+  );
 
   return (
     <div className="flex flex-col h-screen">
@@ -428,7 +485,17 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
             </div>
           )}
         </div>
-        <ExportButton projectId={projectId} captions={captions} style={style} />
+        <div className="flex items-center gap-2">
+          <a
+            href={`/api/projects/${projectId}/archive`}
+            download
+            className="px-3 py-2 rounded-lg bg-neutral-800 text-sm text-neutral-300 hover:bg-neutral-700 transition-colors"
+            title="Download a full backup of this project (video, transcript, settings, exports)"
+          >
+            Backup .zip
+          </a>
+          <ExportButton projectId={projectId} captions={captions} style={style} renderHistory={project.renderHistory} />
+        </div>
       </header>
 
       {scriptChoicePending && transcript?.language && (
@@ -471,6 +538,14 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
           onMusicTrackChange={setMusicTrackId}
           musicVolume={musicVolume}
           onMusicVolumeChange={setMusicVolume}
+          logos={logos}
+          onLogosChange={setLogos}
+          logo={logo}
+          onLogoChange={setLogo}
+          intro={intro}
+          onIntroChange={setIntro}
+          outro={outro}
+          onOutroChange={setOutro}
         />
 
         <div className="flex-1 flex flex-col min-w-0">

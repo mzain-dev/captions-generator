@@ -36,10 +36,13 @@ export const audioPath = (projectId: string) =>
 export const transcriptJsonPath = (projectId: string) =>
   path.join(projectTranscriptDir(projectId), "transcript.json");
 
-export const renderOutputPath = (projectId: string) =>
-  path.join(projectRenderDir(projectId), "final.mp4");
+// Each export gets its own file (renderId) rather than overwriting a single "final.mp4",
+// so past exports remain downloadable as export history instead of being lost on re-export.
+export const renderOutputPath = (projectId: string, renderId: string) =>
+  path.join(projectRenderDir(projectId), `${renderId}.mp4`);
 
 export const toPublicVideoUrl = (projectId: string, fileName: string) =>
   `/media/videos/${projectId}/${fileName}`;
 
-export const toPublicRenderUrl = (projectId: string) => `/media/renders/${projectId}/final.mp4`;
+export const toPublicRenderUrl = (projectId: string, renderId: string) =>
+  `/media/renders/${projectId}/${renderId}.mp4`;
